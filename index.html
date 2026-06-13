@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>فريق نسر البرية - نظام النقاط</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<style>
+  :root{--bg:#0f1720;--card:#1b2531;--accent:#f5b301;--green:#22c55e;--text:#e8edf2;--muted:#94a3b8;--line:#2a3645}
+  *{box-sizing:border-box;font-family:'Segoe UI',Tahoma,sans-serif}
+  body{margin:0;background:var(--bg);color:var(--text)}
+  header{background:linear-gradient(135deg,#1e3a5f,#0f1720);padding:18px 16px;text-align:center;border-bottom:3px solid var(--accent)}
+  .church{color:var(--accent);font-size:1rem;font-weight:700;line-height:1.5;margin-bottom:6px}
+  header h1{margin:0;font-size:1.5rem}
+  header p{margin:5px 0 0;color:var(--muted);font-size:.85rem}
+  #authBox{display:flex;gap:10px;align-items:center;justify-content:center;flex-wrap:wrap;margin-top:12px;font-size:.8rem;color:var(--muted)}
+  #authBox:empty{margin-top:0}
+  #authBox button{background:transparent;color:var(--accent);border:1px solid var(--line);padding:5px 10px;border-radius:6px;cursor:pointer}
+  #toast{position:fixed;top:18px;right:50%;transform:translateX(50%);background:var(--green);color:#fff;padding:12px 22px;border-radius:10px;font-weight:bold;display:none;z-index:120;box-shadow:0 6px 20px rgba(0,0,0,.4);max-width:90%;text-align:center}
+  .tabs{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;padding:12px;background:var(--card);border-bottom:1px solid var(--line)}
+  .tabs button{background:transparent;color:var(--muted);border:1px solid var(--line);padding:8px 14px;border-radius:8px;cursor:pointer;font-size:.9rem}
+  .tabs button.active{background:var(--accent);color:#1b2531;font-weight:bold;border-color:var(--accent)}
+  .admin-tab{display:none}
+  main{max-width:920px;margin:0 auto;padding:18px}
+  .panel{display:none}
+  .panel.active{display:block}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:16px}
+  h2{margin:0 0 12px;font-size:1.15rem}
+  table{width:100%;border-collapse:collapse}
+  th,td{padding:10px;text-align:right;border-bottom:1px solid var(--line)}
+  th{color:var(--muted);font-weight:600;font-size:.85rem}
+  .rank{font-weight:bold;width:42px;text-align:center}
+  .rank.gold{color:#f5b301}.rank.silver{color:#cbd5e1}.rank.bronze{color:#d6843c}
+  .pts{font-weight:bold;color:var(--accent);text-align:center}
+  input,select{background:#0f1720;color:var(--text);border:1px solid var(--line);border-radius:8px;padding:9px;font-size:.9rem;width:100%}
+  label{display:block;font-size:.8rem;color:var(--muted);margin:0 0 4px}
+  .row{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+  .row>div{flex:1;min-width:140px}
+  button.act{background:var(--green);color:#fff;border:none;padding:10px 16px;border-radius:8px;cursor:pointer;font-weight:bold}
+  button.del{background:transparent;color:#ef4444;border:none;cursor:pointer;font-size:1.1rem}
+  button.edit{background:transparent;color:var(--accent);border:none;cursor:pointer;font-size:1.05rem}
+  .att-list{max-height:320px;overflow:auto}
+  .att-row{display:flex;align-items:center;gap:10px;padding:8px;border-bottom:1px solid var(--line)}
+  .att-row span{flex:1}
+  .att-row input[type=checkbox]{width:20px;height:20px}
+  .empty{color:var(--muted);text-align:center;padding:18px}
+  small.hint{color:var(--muted)}
+  #loginCard{max-width:380px;margin:30px auto}
+  .sub{color:var(--muted);font-size:.8rem}
+  #editModal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:110;align-items:center;justify-content:center;padding:16px}
+  #editModal .card{max-width:400px;width:100%;margin:0}
+  .modal-actions{display:flex;gap:10px;margin-top:8px}
+  .btn-cancel{background:transparent;color:var(--muted);border:1px solid var(--line);border-radius:8px;padding:10px 16px;cursor:pointer}
+  @media(max-width:600px){.church{font-size:.9rem}header h1{font-size:1.2rem}.tabs button{font-size:.82rem;padding:7px 10px}}
+</style>
+</head>
+<body>
+<div id="toast"></div>
+
+<!-- نافذة تعديل الكشاف -->
+<div id="editModal">
+  <div class="card">
+    <h2>✏️ تعديل بيانات الكشاف</h2>
+    <div class="row"><div><label>الاسم</label><input id="eName"></div></div>
+    <div class="row"><div><label>الفريق</label><select id="eTeam"></select></div></div>
+    <div class="row"><div><label>الطليعة</label><select id="eTroop"></select></div></div>
+    <div class="modal-actions">
+      <button class="act" onclick="saveEdit()">💾 حفظ التعديل</button>
+      <button class="btn-cancel" onclick="closeEdit()">إلغاء</button>
+    </div>
+  </div>
+</div>
+
+<header>
+  <div class="church">⛪ كنيسة الشهيد العظيم مارجرجس - أبو زعبل البلد</div>
+  <h1>🦅 فريق نسر البرية</h1>
+  <p>نظام نقاط الكشافة • لوحة متصدرين • تسجيل حضور</p>
+  <div id="authBox"></div>
+</header>
+
+<div class="tabs">
+  <button data-tab="board" class="active">🏆 لوحة المتصدرين</button>
+  <button data-tab="attend" class="admin-tab">📋 تسجيل الحضور</button>
+  <button data-tab="points" class="admin-tab">➕ إضافة نقاط</button>
+  <button data-tab="members" class="admin-tab">🧑 الكشافة</button>
+  <button data-tab="troops" class="admin-tab">⛺ الطلايع</button>
+  <button data-tab="teams" class="admin-tab">🚩 الفرق</button>
+  <button data-tab="login" id="loginTab">🔑 دخول الأدمن</button>
+</div>
+
+<main>
+  <!-- لوحة المتصدرين (عامة) -->
+  <section id="board" class="panel active">
+    <div class="card">
+      <h2>🏆 متصدرو الأفراد</h2>
+      <table><thead><tr><th class="rank">#</th><th>الاسم</th><th>الفريق</th><th>الطليعة</th><th class="pts">النقاط</th></tr></thead>
+      <tbody id="boardInd"></tbody></table>
+    </div>
+    <div class="card">
+      <h2>⛺ متصدرو الطلايع</h2>
+      <table><thead><tr><th class="rank">#</th><th>الطليعة</th><th>الفريق</th><th class="pts">النقاط</th></tr></thead>
+      <tbody id="boardTroop"></tbody></table>
+    </div>
+  </section>
+
+  <!-- دخول الأدمن -->
+  <section id="login" class="panel">
+    <div class="card" id="loginCard">
+      <h2>🔑 تسجيل دخول الأدمن</h2>
+      <div class="row"><div><label>الإيميل</label><input id="logEmail" type="email"></div></div>
+      <div class="row"><div><label>الباسورد</label><input id="logPass" type="password"></div></div>
+      <button class="act" onclick="doLogin()">دخول</button>
+      <p id="logMsg" style="color:#ef4444"></p>
+    </div>
+  </section>
+
+  <!-- تسجيل الحضور -->
+  <section id="attend" class="panel">
+    <div class="card">
+      <h2>📋 تسجيل حضور اجتماع</h2>
+      <div class="row">
+        <div><label>التاريخ</label><input type="date" id="attDate"></div>
+        <div><label>نقاط الحضور للفرد</label><input type="number" id="attPts" value="10"></div>
+      </div>
+      <small class="hint">علّم الحاضرين ثم اضغط حفظ الحضور.</small>
+      <div class="att-list" id="attList" style="margin-top:10px"></div>
+      <button class="act" onclick="saveAttendance()" style="margin-top:12px">💾 حفظ الحضور</button>
+    </div>
+    <div class="card">
+      <h2>📥 تحميل تقرير حضور (Excel)</h2>
+      <div class="row">
+        <div><label>اختر الاجتماع</label><select id="expDate"></select></div>
+      </div>
+      <small class="hint">«كل الاجتماعات» بيطلّع ملف فيه ملخص + تفاصيل كل اجتماع.</small>
+      <button class="act" onclick="exportAttendance()" style="margin-top:10px">⬇️ تحميل Excel</button>
+    </div>
+  </section>
+
+  <!-- إضافة نقاط -->
+  <section id="points" class="panel">
+    <div class="card">
+      <h2>➕ إضافة نقاط</h2>
+      <div class="row">
+        <div><label>الكشاف</label><select id="pMember"></select></div>
+        <div><label>النوع</label><select id="pType">
+          <option>نشاط</option><option>مسابقة</option><option>سلوك والتزام</option>
+          <option>شارة/مهارة</option><option>حضور</option><option>أخرى</option>
+        </select></div>
+      </div>
+      <div class="row">
+        <div><label>النقاط</label><input type="number" id="pPts" value="5"></div>
+        <div><label>ملاحظة (اختياري)</label><input id="pNote" placeholder="السبب"></div>
+      </div>
+      <button class="act" onclick="addPoints()">➕ إضافة</button>
+    </div>
+    <div class="card">
+      <h2>📝 آخر الحركات</h2>
+      <table><thead><tr><th>التاريخ</th><th>الكشاف</th><th>النوع</th><th class="pts">النقاط</th><th></th></tr></thead>
+      <tbody id="logBody"></tbody></table>
+    </div>
+  </section>
+
+  <!-- الكشافة -->
+  <section id="members" class="panel">
+    <div class="card">
+      <h2>🧑 إضافة كشاف</h2>
+      <div class="row">
+        <div><label>الاسم</label><input id="mName" placeholder="اسم الكشاف"></div>
+        <div><label>الفريق</label><select id="mTeam"></select></div>
+        <div><label>الطليعة (اختياري)</label><select id="mTroop"></select></div>
+      </div>
+      <button class="act" onclick="addMember()">➕ إضافة كشاف</button>
+    </div>
+    <div class="card">
+      <h2>قائمة الكشافة</h2>
+      <table><thead><tr><th>الاسم</th><th>الفريق</th><th>الطليعة</th><th class="pts">النقاط</th><th></th></tr></thead>
+      <tbody id="memBody"></tbody></table>
+    </div>
+  </section>
+
+  <!-- الطلايع -->
+  <section id="troops" class="panel">
+    <div class="card">
+      <h2>⛺ إضافة طليعة</h2>
+      <div class="row">
+        <div><label>اسم الطليعة</label><input id="troopName" placeholder="اسم الطليعة"></div>
+        <div><label>تابعة لفريق</label><select id="troopTeam"></select></div>
+      </div>
+      <button class="act" onclick="addTroop()">➕ إضافة طليعة</button>
+    </div>
+    <div class="card">
+      <h2>قائمة الطلايع</h2>
+      <table><thead><tr><th>الطليعة</th><th>الفريق</th><th>عدد الأعضاء</th><th class="pts">النقاط</th><th></th></tr></thead>
+      <tbody id="troopBody"></tbody></table>
+    </div>
+  </section>
+
+  <!-- الفرق -->
+  <section id="teams" class="panel">
+    <div class="card">
+      <h2>🚩 إضافة فريق</h2>
+      <div class="row"><div><label>اسم الفريق</label><input id="tName" placeholder="اسم الفريق"></div></div>
+      <button class="act" onclick="addTeam()">➕ إضافة فريق</button>
+    </div>
+    <div class="card">
+      <h2>قائمة الفرق</h2>
+      <table><thead><tr><th>الفريق</th><th>عدد الطلايع</th><th>عدد الأعضاء</th><th class="pts">النقاط</th><th></th></tr></thead>
+      <tbody id="teamBody"></tbody></table>
+    </div>
+  </section>
+</main>
+
+<script>
+// ====== إعدادات Supabase ======
+const SUPABASE_URL = "https://kaqyhmszsmvtxwaydopi.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_SsrWJrx915EwDCVU2P5RYQ_2sv9-rYq";
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+let db={teams:[],patrols:[],members:[],entries:[]};
+let isAdmin=false;
+let editId=null;
+const today=()=>new Date().toISOString().slice(0,10);
+
+const teamName=id=>{const t=db.teams.find(t=>t.id===id);return t?t.name:'—'};
+const troopName=id=>{const p=db.patrols.find(p=>p.id===id);return p?p.name:'—'};
+const memberPts=id=>db.entries.filter(e=>e.member_id===id).reduce((s,e)=>s+(+e.points||0),0);
+const troopPts=id=>db.members.filter(m=>m.patrol_id===id).reduce((s,m)=>s+memberPts(m.id),0);
+const teamPts=id=>db.members.filter(m=>m.team_id===id).reduce((s,m)=>s+memberPts(m.id),0);
+
+function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.style.display='block';setTimeout(()=>t.style.display='none',2500)}
+
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
+  if(!b.dataset.tab)return;
+  document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active');document.getElementById(b.dataset.tab).classList.add('active');
+});
+
+async function loadData(){
+  const [t,p,m,e]=await Promise.all([
+    sb.from('teams').select('*'),
+    sb.from('patrols').select('*'),
+    sb.from('members').select('*'),
+    sb.from('entries').select('*')
+  ]);
+  db.teams=t.data||[]; db.patrols=p.data||[]; db.members=m.data||[]; db.entries=e.data||[];
+  renderAll();
+}
+
+function needAdmin(){if(!isAdmin){alert('سجّل دخول الأدمن أولاً');return true}return false}
+
+async function addTeam(){if(needAdmin())return;const n=tName.value.trim();if(!n)return;
+  const {error}=await sb.from('teams').insert({name:n});if(error)return alert(error.message);tName.value='';loadData()}
+async function addTroop(){if(needAdmin())return;const n=document.getElementById('troopName').value.trim();if(!n)return;if(!troopTeam.value)return alert('اختر الفريق');
+  const {error}=await sb.from('patrols').insert({name:n,team_id:troopTeam.value});if(error)return alert(error.message);document.getElementById('troopName').value='';loadData()}
+async function addMember(){if(needAdmin())return;const n=mName.value.trim();if(!n)return;if(!mTeam.value)return alert('اختر الفريق');
+  const {error}=await sb.from('members').insert({name:n,team_id:mTeam.value,patrol_id:mTroop.value||null});if(error)return alert(error.message);mName.value='';loadData()}
+async function addPoints(){if(needAdmin())return;if(!pMember.value)return alert('اختر كشاف');
+  const {error}=await sb.from('entries').insert({member_id:pMember.value,type:pType.value,points:+pPts.value||0,date:today(),note:pNote.value});
+  if(error)return alert(error.message);pNote.value='';loadData()}
+async function saveAttendance(){if(needAdmin())return;
+  const pts=+attPts.value||0;const d=attDate.value||today();const rows=[];
+  document.querySelectorAll('#attList input[type=checkbox]:checked').forEach(cb=>rows.push({member_id:cb.dataset.id,type:'حضور',points:pts,date:d,note:'حضور اجتماع'}));
+  if(!rows.length)return alert('علّم الحاضرين أولاً');
+  const {error}=await sb.from('entries').insert(rows);if(error)return alert(error.message);
+  toast('تم تسجيل حضور '+rows.length+' كشاف');loadData()}
+async function delMember(id){if(needAdmin())return;if(!confirm('حذف الكشاف وكل نقاطه؟'))return;
+  const {error}=await sb.from('members').delete().eq('id',id);if(error)return alert(error.message);loadData()}
+async function delTroop(id){if(needAdmin())return;if(!confirm('حذف الطليعة؟'))return;
+  const {error}=await sb.from('patrols').delete().eq('id',id);if(error)return alert(error.message);loadData()}
+async function delTeam(id){if(needAdmin())return;if(!confirm('حذف الفريق وكل طلايعه؟'))return;
+  const {error}=await sb.from('teams').delete().eq('id',id);if(error)return alert(error.message);loadData()}
+async function delEntry(id){if(needAdmin())return;
+  const {error}=await sb.from('entries').delete().eq('id',id);if(error)return alert(error.message);loadData()}
+
+// ====== تعديل الكشاف ======
+function openEdit(id){
+  if(needAdmin())return;
+  const m=db.members.find(x=>x.id===id);if(!m)return;
+  editId=id;
+  eName.value=m.name;
+  eTeam.innerHTML='<option value="">— اختر الفريق —</option>'+db.teams.map(t=>`<option value="${t.id}">${t.name}</option>`).join('');
+  eTeam.value=m.team_id||'';
+  fillEditTroop(m.patrol_id||'');
+  editModal.style.display='flex';
+}
+function fillEditTroop(selected){
+  const troops=db.patrols.filter(p=>p.team_id===eTeam.value);
+  eTroop.innerHTML='<option value="">— بدون طليعة —</option>'+troops.map(p=>`<option value="${p.id}">${p.name}</option>`).join('');
+  if(selected)eTroop.value=selected;
+}
+function closeEdit(){editModal.style.display='none';editId=null}
+async function saveEdit(){
+  if(!editId)return;
+  if(!eName.value.trim())return alert('اكتب الاسم');
+  if(!eTeam.value)return alert('اختر الفريق');
+  const {error}=await sb.from('members').update({name:eName.value.trim(),team_id:eTeam.value,patrol_id:eTroop.value||null}).eq('id',editId);
+  if(error)return alert(error.message);
+  closeEdit();toast('✅ تم تحديث بيانات الكشاف');loadData();
+}
+
+// ====== تصدير الحضور Excel ======
+function exportAttendance(){
+  const att=db.entries.filter(e=>e.type==='حضور');
+  if(!att.length)return alert('لا يوجد حضور مسجّل');
+  const sel=expDate.value;
+  const allDates=[...new Set(att.map(e=>e.date))].sort();
+  const dates=sel?[sel]:allDates;
+
+  const aoa=[];
+  aoa.push(['كنيسة الشهيد العظيم مارجرجس - أبو زعبل البلد']);
+  aoa.push(['فريق نسر البرية - تقرير الحضور']);
+  aoa.push([]);
+
+  dates.forEach(d=>{
+    const rows=att.filter(e=>e.date===d);
+    aoa.push(['اجتماع بتاريخ:',d,'','عدد الحاضرين:',rows.length,'','إجمالي النقاط:',rows.reduce((s,e)=>s+(+e.points||0),0)]);
+    aoa.push(['#','اسم الكشاف','الفريق','الطليعة','النقاط','ملاحظة']);
+    let i=0;
+    rows.forEach(e=>{
+      const m=db.members.find(x=>x.id===e.member_id);
+      aoa.push([++i, m?m.name:'—', m?teamName(m.team_id):'—', (m&&m.patrol_id)?troopName(m.patrol_id):'—', e.points, e.note||'']);
+    });
+    aoa.push([]); // سطر فاصل بين كل اجتماع والتاني
+  });
+
+  const ws=XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols']=[{wch:14},{wch:24},{wch:18},{wch:18},{wch:9},{wch:18}];
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,'تقرير الحضور');
+  XLSX.writeFile(wb, sel?`حضور_${sel}.xlsx`:'تقرير_الحضور.xlsx');
+}
+
+// تسجيل الدخول
+async function doLogin(){
+  const {error}=await sb.auth.signInWithPassword({email:logEmail.value.trim(),password:logPass.value});
+  if(error){logMsg.textContent='بيانات غير صحيحة';return}
+  logMsg.textContent='';logPass.value='';
+  toast('✅ تم تسجيل دخولك بنجاح');
+  document.querySelector('[data-tab="board"]').click();
+}
+async function doLogout(){await sb.auth.signOut()}
+
+function updateAuthUI(session){
+  isAdmin=!!session;
+  document.querySelectorAll('.admin-tab').forEach(t=>t.style.display=isAdmin?'inline-block':'none');
+  loginTab.style.display=isAdmin?'none':'inline-block';
+  authBox.innerHTML=isAdmin?`<span>${session.user.email}</span> <button onclick="doLogout()">خروج</button>`:'';
+  if(!isAdmin){
+    const cur=document.querySelector('.panel.active');
+    if(cur && cur.id!=='board' && cur.id!=='login'){document.querySelector('[data-tab="board"]').click()}
+  }
+}
+sb.auth.onAuthStateChange((_e,session)=>updateAuthUI(session));
+
+function fillTroopOptions(){
+  const troops=db.patrols.filter(p=>p.team_id===mTeam.value);
+  mTroop.innerHTML='<option value="">— بدون طليعة —</option>'+troops.map(p=>`<option value="${p.id}">${p.name}</option>`).join('');
+}
+
+function renderAll(){
+  const teamOptsPH='<option value="">— اختر الفريق —</option>'+db.teams.map(t=>`<option value="${t.id}">${t.name}</option>`).join('');
+  mTeam.innerHTML=teamOptsPH;
+  troopTeam.innerHTML=teamOptsPH;
+  fillTroopOptions();
+  pMember.innerHTML=db.members.map(m=>`<option value="${m.id}">${m.name}</option>`).join('');
+
+  const ind=db.members.map(m=>({...m,pts:memberPts(m.id)})).sort((a,b)=>b.pts-a.pts);
+  boardInd.innerHTML=ind.length?ind.map((m,i)=>`<tr><td class="rank ${['gold','silver','bronze'][i]||''}">${i+1}</td><td>${m.name}</td><td>${teamName(m.team_id)}</td><td>${m.patrol_id?troopName(m.patrol_id):'<span class="sub">—</span>'}</td><td class="pts">${m.pts}</td></tr>`).join(''):`<tr><td colspan="5" class="empty">لا يوجد كشافة بعد</td></tr>`;
+
+  const troops=db.patrols.map(p=>({...p,pts:troopPts(p.id)})).sort((a,b)=>b.pts-a.pts);
+  boardTroop.innerHTML=troops.length?troops.map((p,i)=>`<tr><td class="rank ${['gold','silver','bronze'][i]||''}">${i+1}</td><td>${p.name}</td><td>${teamName(p.team_id)}</td><td class="pts">${p.pts}</td></tr>`).join(''):`<tr><td colspan="4" class="empty">لا يوجد طلايع بعد</td></tr>`;
+
+  attList.innerHTML=db.members.length?db.members.map(m=>`<div class="att-row"><input type="checkbox" data-id="${m.id}"><span>${m.name} <small class="hint">(${teamName(m.team_id)}${m.patrol_id?' • '+troopName(m.patrol_id):''})</small></span></div>`).join(''):`<div class="empty">أضف كشافة أولاً</div>`;
+
+  const attDates=[...new Set(db.entries.filter(e=>e.type==='حضور').map(e=>e.date))].sort().reverse();
+  expDate.innerHTML='<option value="">كل الاجتماعات</option>'+attDates.map(d=>`<option value="${d}">${d}</option>`).join('');
+
+  const log=[...db.entries].sort((a,b)=>(b.date||'').localeCompare(a.date||'')).slice(0,30);
+  logBody.innerHTML=log.length?log.map(e=>{const m=db.members.find(x=>x.id===e.member_id);return `<tr><td>${e.date}</td><td>${m?m.name:'—'}</td><td>${e.type}</td><td class="pts">${e.points}</td><td><button class="del" onclick="delEntry('${e.id}')">✕</button></td></tr>`}).join(''):`<tr><td colspan="5" class="empty">لا توجد حركات</td></tr>`;
+
+  memBody.innerHTML=db.members.length?db.members.map(m=>`<tr><td>${m.name}</td><td>${teamName(m.team_id)}</td><td>${m.patrol_id?troopName(m.patrol_id):'<span class="sub">—</span>'}</td><td class="pts">${memberPts(m.id)}</td><td><button class="edit" onclick="openEdit('${m.id}')">✏️</button> <button class="del" onclick="delMember('${m.id}')">🗑</button></td></tr>`).join(''):`<tr><td colspan="5" class="empty">لا يوجد كشافة</td></tr>`;
+
+  troopBody.innerHTML=db.patrols.length?db.patrols.map(p=>`<tr><td>${p.name}</td><td>${teamName(p.team_id)}</td><td>${db.members.filter(m=>m.patrol_id===p.id).length}</td><td class="pts">${troopPts(p.id)}</td><td><button class="del" onclick="delTroop('${p.id}')">🗑</button></td></tr>`).join(''):`<tr><td colspan="5" class="empty">لا يوجد طلايع</td></tr>`;
+
+  teamBody.innerHTML=db.teams.length?db.teams.map(t=>`<tr><td>${t.name}</td><td>${db.patrols.filter(p=>p.team_id===t.id).length}</td><td>${db.members.filter(m=>m.team_id===t.id).length}</td><td class="pts">${teamPts(t.id)}</td><td><button class="del" onclick="delTeam('${t.id}')">🗑</button></td></tr>`).join(''):`<tr><td colspan="5" class="empty">لا يوجد فرق</td></tr>`;
+}
+
+// تشغيل
+attDate.value=today();
+document.getElementById('mTeam').addEventListener('change',fillTroopOptions);
+document.getElementById('eTeam').addEventListener('change',()=>fillEditTroop(''));
+sb.auth.getSession().then(({data})=>updateAuthUI(data.session));
+loadData();
+</script>
+</body>
+</html>
