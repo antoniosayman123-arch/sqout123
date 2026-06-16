@@ -499,18 +499,31 @@ function exportAttendance(){
   const sel=expDate.value;
   const allDates=[...new Set(att.map(e=>e.date))].sort();
   const dates=sel?[sel]:allDates;
-  const aoa=[['كنيسة الشهيد العظيم مارجرجس - أبو زعبل البلد'],['فريق نسر البرية - تقرير الحضور'],[]];
-  dates.forEach(d=>{
+
+  const aoa=[];
+  aoa.push(['كنيسة الشهيد العظيم مارجرجس - أبو زعبل البلد']);
+  aoa.push(['فريق نسر البرية — تقرير الحضور']);
+  aoa.push([]);
+
+  dates.forEach((d,idx)=>{
     const rows=att.filter(e=>e.date===d);
-    aoa.push(['اجتماع بتاريخ:',d,'','عدد الحاضرين:',rows.length,'','إجمالي النقاط:',rows.reduce((s,e)=>s+(+e.points||0),0)]);
+    aoa.push(['تاريخ الاجتماع:',d]);
+    aoa.push(['عدد الحاضرين:',rows.length]);
+    aoa.push(['إجمالي النقاط:',rows.reduce((s,e)=>s+(+e.points||0),0)]);
+    aoa.push([]);
     aoa.push(['#','اسم الكشاف','الفريق','الطليعة','النقاط','ملاحظة']);
     let i=0;
-    rows.forEach(e=>{const m=db.members.find(x=>x.id===e.member_id);aoa.push([++i,m?m.name:'—',m?teamName(m.team_id):'—',(m&&m.patrol_id)?troopName(m.patrol_id):'—',e.points,e.note||''])});
-    aoa.push([]);
+    rows.forEach(e=>{
+      const m=db.members.find(x=>x.id===e.member_id);
+      aoa.push([++i, m?m.name:'—', m?teamName(m.team_id):'—', (m&&m.patrol_id)?troopName(m.patrol_id):'—', e.points, e.note||'']);
+    });
+    if(idx<dates.length-1){aoa.push([]);aoa.push([]);}
   });
+
   const ws=XLSX.utils.aoa_to_sheet(aoa);
-  ws['!cols']=[{wch:14},{wch:24},{wch:18},{wch:18},{wch:9},{wch:18}];
+  ws['!cols']=[{wch:7},{wch:26},{wch:18},{wch:18},{wch:9},{wch:20}];
   const wb=XLSX.utils.book_new();
+  wb.Workbook={Views:[{RTL:true}]};   // يخلي الورقة تبدأ من اليمين
   XLSX.utils.book_append_sheet(wb,ws,'تقرير الحضور');
   XLSX.writeFile(wb, sel?`حضور_${sel}.xlsx`:'تقرير_الحضور.xlsx');
 }
