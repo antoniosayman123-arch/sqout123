@@ -28,7 +28,7 @@
   .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:16px}
   h2{margin:0 0 12px;font-size:1.15rem}
   table{width:100%;border-collapse:collapse}
-  th,td{padding:10px;text-align:right;border-bottom:1px solid var(--line)}
+  th,td{padding:10px;text-align:right;border-bottom:1px solid var(--line);vertical-align:top}
   th{color:var(--muted);font-weight:600;font-size:.85rem}
   .rank{font-weight:bold;width:42px;text-align:center}
   .rank.gold{color:#f5b301}.rank.silver{color:#cbd5e1}.rank.bronze{color:#d6843c}
@@ -52,6 +52,14 @@
   #editModal .card{max-width:400px;width:100%;margin:0}
   .modal-actions{display:flex;gap:10px;margin-top:8px}
   .btn-cancel{background:transparent;color:var(--muted);border:1px solid var(--line);border-radius:8px;padding:10px 16px;cursor:pointer}
+  .eval-item{border:1px solid var(--line);border-radius:8px;padding:12px;margin-bottom:10px}
+  .eval-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;gap:8px}
+  .eval-sub{color:var(--muted);font-size:.78rem;white-space:nowrap}
+  .eval-opts{display:flex;flex-direction:column;gap:7px;margin-top:8px}
+  .opt{display:flex;align-items:center;gap:8px;font-size:.9rem;cursor:pointer}
+  .opt input{width:auto}
+  .opt b{color:var(--accent)}
+  .eval-total{position:sticky;bottom:0;background:var(--card);padding:12px;border-top:2px solid var(--accent);display:flex;justify-content:space-between;align-items:center;font-size:1.15rem;font-weight:bold;margin-top:10px;border-radius:8px}
   @media(max-width:600px){.church{font-size:.9rem}header h1{font-size:1.2rem}.tabs button{font-size:.82rem;padding:7px 10px}}
 </style>
 </head>
@@ -81,7 +89,9 @@
 
 <div class="tabs">
   <button data-tab="board" class="active">🏆 لوحة المتصدرين</button>
+  <button data-tab="rubric">📖 بنود التقييم</button>
   <button data-tab="attend" class="admin-tab">📋 تسجيل الحضور</button>
+  <button data-tab="evaluate" class="admin-tab">📝 التقييم</button>
   <button data-tab="points" class="admin-tab">➕ إضافة نقاط</button>
   <button data-tab="members" class="admin-tab">🧑 الكشافة</button>
   <button data-tab="troops" class="admin-tab">⛺ الطلايع</button>
@@ -101,6 +111,15 @@
       <h2>⛺ متصدرو الطلايع</h2>
       <table><thead><tr><th class="rank">#</th><th>الطليعة</th><th>الفريق</th><th class="pts">النقاط</th></tr></thead>
       <tbody id="boardTroop"></tbody></table>
+    </div>
+  </section>
+
+  <!-- بنود التقييم (مرجع عام) -->
+  <section id="rubric" class="panel">
+    <div class="card">
+      <h2>📖 بنود التقييم والدرجات</h2>
+      <table><thead><tr><th>البند</th><th class="pts">الدرجة</th><th>طريقة التقييم</th></tr></thead>
+      <tbody id="rubricBody"></tbody></table>
     </div>
   </section>
 
@@ -132,8 +151,22 @@
       <div class="row">
         <div><label>اختر الاجتماع</label><select id="expDate"></select></div>
       </div>
-      <small class="hint">«كل الاجتماعات» بيطلّع ملف فيه ملخص + تفاصيل كل اجتماع.</small>
+      <small class="hint">«كل الاجتماعات» بيطلّع ملف فيه كل اجتماع وأسماء الحاضرين.</small>
       <button class="act" onclick="exportAttendance()" style="margin-top:10px">⬇️ تحميل Excel</button>
+    </div>
+  </section>
+
+  <!-- التقييم -->
+  <section id="evaluate" class="panel">
+    <div class="card">
+      <h2>📝 تقييم كشاف</h2>
+      <div class="row">
+        <div><label>الكشاف</label><select id="evalMember"></select></div>
+        <div><label>التاريخ</label><input type="date" id="evalDate"></div>
+      </div>
+      <div id="evalBody"></div>
+      <div class="eval-total"><span>الإجمالي:</span><span><span id="evalTotal">0</span> درجة</span></div>
+      <button class="act" onclick="saveEval()" style="margin-top:12px">💾 حفظ التقييم</button>
     </div>
   </section>
 
@@ -145,7 +178,7 @@
         <div><label>الكشاف</label><select id="pMember"></select></div>
         <div><label>النوع</label><select id="pType">
           <option>نشاط</option><option>مسابقة</option><option>سلوك والتزام</option>
-          <option>شارة/مهارة</option><option>حضور</option><option>أخرى</option>
+          <option>شارة/مهارة</option><option>حضور</option><option>تقييم</option><option>أخرى</option>
         </select></div>
       </div>
       <div class="row">
@@ -221,6 +254,31 @@ let db={teams:[],patrols:[],members:[],entries:[]};
 let isAdmin=false;
 let editId=null;
 const today=()=>new Date().toISOString().slice(0,10);
+
+// ====== بنود التقييم ======
+const RUBRIC=[
+  {key:'mass',name:'حضور القداس',max:5,type:'radio',opts:[
+    {label:'الحضور من رفع صلاة باكر',pts:5},{label:'الحضور من رفع الحمل',pts:4},{label:'الحضور قبل الإنجيل',pts:3},{label:'لم يحضر',pts:0}]},
+  {key:'commit',name:'الالتزام في القداس',max:5,type:'check',opts:[
+    {label:'ماسك الخولاجي ومتابع',pts:2},{label:'بيرد مع الألحان',pts:2},{label:'ملتزم بآداب حضور القداس',pts:1}]},
+  {key:'communion',name:'التناول',max:5,type:'radio',opts:[
+    {label:'تناول',pts:5},{label:'لم يتناول',pts:0}],note:'عن كل مرة تناول'},
+  {key:'confess',name:'الاعتراف',max:5,type:'radio',opts:[
+    {label:'اعترف خلال شهر + جواب من أب الاعتراف',pts:5},{label:'لم يعترف',pts:0}],note:'لا تزيد فترة الاعتراف عن شهر مع إحضار جواب من أب الاعتراف'},
+  {key:'homeprayer',name:'صلاة في البيت',max:5,type:'check',opts:[
+    {label:'باكر',pts:3},{label:'النوم',pts:2}]},
+  {key:'bible',name:'الكتاب المقدس',max:5,type:'radio',opts:[
+    {label:'قرأ السفر المحدد',pts:5},{label:'لم يقرأ',pts:0}],note:'يتم تحديد السفر بناءً على مدارس الأحد'},
+  {key:'meeting',name:'حضور الاجتماع',max:5,type:'radio',opts:[
+    {label:'الحضور',pts:5},{label:'عدم الحضور باعتذار سابق',pts:3},{label:'غياب بدون عذر',pts:0}]},
+  {key:'ontime',name:'ميعاد الاجتماع',max:5,type:'radio',opts:[
+    {label:'في الميعاد',pts:5},{label:'متأخر حتى 10 دقائق',pts:4},{label:'متأخر أكثر من 10 دقائق بعذر مسبق',pts:3},{label:'متأخر أكثر من 10 دقائق بدون عذر',pts:1}]},
+  {key:'uniform',name:'الزي الكشفي',max:5,type:'check',opts:[
+    {label:'القميص',pts:1},{label:'البنطلون',pts:1},{label:'الحذاء',pts:1},{label:'الهيئة العامة',pts:1}]},
+  {key:'participate',name:'المشاركة في الاجتماع',max:5,type:'radio',opts:[
+    {label:'مشاركة منظمة باستئذان',pts:5},{label:'مشاركة غير منظمة (مع التنبيه على الاستئذان)',pts:2},{label:'لم يشارك',pts:0}]},
+  {key:'negative',name:'التقييم السلبي (خصم)',max:5,type:'deduct',note:'يمكن للقائد خصم درجات حسب رؤيته بحد أقصى 5 درجات في المخالفة الواحدة'}
+];
 
 const teamName=id=>{const t=db.teams.find(t=>t.id===id);return t?t.name:'—'};
 const troopName=id=>{const p=db.patrols.find(p=>p.id===id);return p?p.name:'—'};
@@ -300,36 +358,58 @@ async function saveEdit(){
   closeEdit();toast('✅ تم تحديث بيانات الكشاف');loadData();
 }
 
-// ====== تصدير الحضور Excel ======
-function exportAttendance(){
-  const att=db.entries.filter(e=>e.type==='حضور');
-  if(!att.length)return alert('لا يوجد حضور مسجّل');
-  const sel=expDate.value;
-  const allDates=[...new Set(att.map(e=>e.date))].sort();
-  const dates=sel?[sel]:allDates;
-
-  const aoa=[];
-  aoa.push(['كنيسة الشهيد العظيم مارجرجس - أبو زعبل البلد']);
-  aoa.push(['فريق نسر البرية - تقرير الحضور']);
-  aoa.push([]);
-
-  dates.forEach(d=>{
-    const rows=att.filter(e=>e.date===d);
-    aoa.push(['اجتماع بتاريخ:',d,'','عدد الحاضرين:',rows.length,'','إجمالي النقاط:',rows.reduce((s,e)=>s+(+e.points||0),0)]);
-    aoa.push(['#','اسم الكشاف','الفريق','الطليعة','النقاط','ملاحظة']);
-    let i=0;
-    rows.forEach(e=>{
-      const m=db.members.find(x=>x.id===e.member_id);
-      aoa.push([++i, m?m.name:'—', m?teamName(m.team_id):'—', (m&&m.patrol_id)?troopName(m.patrol_id):'—', e.points, e.note||'']);
-    });
-    aoa.push([]); // سطر فاصل بين كل اجتماع والتاني
+// ====== التقييم ======
+function buildEvalInputs(){
+  let html='';
+  RUBRIC.forEach(it=>{
+    html+=`<div class="eval-item"><div class="eval-head"><strong>${it.name}</strong><span class="eval-sub">الحد الأقصى ${it.max}</span></div>`;
+    if(it.note)html+=`<small class="hint">${it.note}</small>`;
+    html+='<div class="eval-opts">';
+    if(it.type==='radio'){
+      html+=it.opts.map((o,i)=>`<label class="opt"><input type="radio" name="r_${it.key}" value="${o.pts}" ${i===0?'checked':''}> ${o.label} <b>(${o.pts})</b></label>`).join('');
+    }else if(it.type==='check'){
+      html+=it.opts.map(o=>`<label class="opt"><input type="checkbox" name="c_${it.key}" value="${o.pts}"> ${o.label} <b>(${o.pts})</b></label>`).join('');
+    }else if(it.type==='deduct'){
+      html+=`<label class="opt">خصم: <input type="number" name="d_${it.key}" value="0" min="0" max="5" style="width:90px"> درجة</label>`;
+    }
+    html+='</div></div>';
   });
-
-  const ws=XLSX.utils.aoa_to_sheet(aoa);
-  ws['!cols']=[{wch:14},{wch:24},{wch:18},{wch:18},{wch:9},{wch:18}];
-  const wb=XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb,ws,'تقرير الحضور');
-  XLSX.writeFile(wb, sel?`حضور_${sel}.xlsx`:'تقرير_الحضور.xlsx');
+  evalBody.innerHTML=html;
+  evalBody.querySelectorAll('input').forEach(inp=>inp.addEventListener('input',calcEval));
+  evalDate.value=today();
+  calcEval();
+}
+function calcEval(){
+  let total=0;
+  RUBRIC.forEach(it=>{
+    if(it.type==='radio'){
+      const sel=evalBody.querySelector(`input[name="r_${it.key}"]:checked`);
+      if(sel)total+=+sel.value;
+    }else if(it.type==='check'){
+      let s=0;evalBody.querySelectorAll(`input[name="c_${it.key}"]:checked`).forEach(c=>s+=+c.value);
+      total+=Math.min(s,it.max);
+    }else if(it.type==='deduct'){
+      const d=evalBody.querySelector(`input[name="d_${it.key}"]`);
+      total-=Math.min(Math.max(+d.value||0,0),5);
+    }
+  });
+  evalTotal.textContent=total;
+  return total;
+}
+async function saveEval(){
+  if(needAdmin())return;
+  if(!evalMember.value)return alert('اختر كشاف');
+  const total=calcEval();
+  const {error}=await sb.from('entries').insert({member_id:evalMember.value,type:'تقييم',points:total,date:evalDate.value||today(),note:'تقييم أسبوعي'});
+  if(error)return alert(error.message);
+  toast('✅ تم حفظ التقييم: '+total+' درجة');loadData();
+}
+function renderRubric(){
+  rubricBody.innerHTML=RUBRIC.map(it=>{
+    let desc=it.opts?it.opts.map(o=>`${o.label} (${o.pts})`).join('<br>'):(it.note||'');
+    if(it.opts&&it.note)desc+=`<br><span class="sub">${it.note}</span>`;
+    return `<tr><td><strong>${it.name}</strong></td><td class="pts">${it.max}</td><td>${desc}</td></tr>`;
+  }).join('');
 }
 
 // تسجيل الدخول
@@ -349,7 +429,9 @@ function updateAuthUI(session){
   authBox.innerHTML=isAdmin?`<span>${session.user.email}</span> <button onclick="doLogout()">خروج</button>`:'';
   if(!isAdmin){
     const cur=document.querySelector('.panel.active');
-    if(cur && cur.id!=='board' && cur.id!=='login'){document.querySelector('[data-tab="board"]').click()}
+    if(cur && cur.classList.contains('panel') && document.querySelector(`[data-tab="${cur.id}"]`)?.classList.contains('admin-tab')){
+      document.querySelector('[data-tab="board"]').click();
+    }
   }
 }
 sb.auth.onAuthStateChange((_e,session)=>updateAuthUI(session));
@@ -364,7 +446,9 @@ function renderAll(){
   mTeam.innerHTML=teamOptsPH;
   troopTeam.innerHTML=teamOptsPH;
   fillTroopOptions();
-  pMember.innerHTML=db.members.map(m=>`<option value="${m.id}">${m.name}</option>`).join('');
+  const memOpts=db.members.map(m=>`<option value="${m.id}">${m.name}</option>`).join('');
+  pMember.innerHTML=memOpts;
+  evalMember.innerHTML=memOpts;
 
   const ind=db.members.map(m=>({...m,pts:memberPts(m.id)})).sort((a,b)=>b.pts-a.pts);
   boardInd.innerHTML=ind.length?ind.map((m,i)=>`<tr><td class="rank ${['gold','silver','bronze'][i]||''}">${i+1}</td><td>${m.name}</td><td>${teamName(m.team_id)}</td><td>${m.patrol_id?troopName(m.patrol_id):'<span class="sub">—</span>'}</td><td class="pts">${m.pts}</td></tr>`).join(''):`<tr><td colspan="5" class="empty">لا يوجد كشافة بعد</td></tr>`;
@@ -387,8 +471,33 @@ function renderAll(){
   teamBody.innerHTML=db.teams.length?db.teams.map(t=>`<tr><td>${t.name}</td><td>${db.patrols.filter(p=>p.team_id===t.id).length}</td><td>${db.members.filter(m=>m.team_id===t.id).length}</td><td class="pts">${teamPts(t.id)}</td><td><button class="del" onclick="delTeam('${t.id}')">🗑</button></td></tr>`).join(''):`<tr><td colspan="5" class="empty">لا يوجد فرق</td></tr>`;
 }
 
+// ====== تصدير الحضور Excel ======
+function exportAttendance(){
+  const att=db.entries.filter(e=>e.type==='حضور');
+  if(!att.length)return alert('لا يوجد حضور مسجّل');
+  const sel=expDate.value;
+  const allDates=[...new Set(att.map(e=>e.date))].sort();
+  const dates=sel?[sel]:allDates;
+  const aoa=[['كنيسة الشهيد العظيم مارجرجس - أبو زعبل البلد'],['فريق نسر البرية - تقرير الحضور'],[]];
+  dates.forEach(d=>{
+    const rows=att.filter(e=>e.date===d);
+    aoa.push(['اجتماع بتاريخ:',d,'','عدد الحاضرين:',rows.length,'','إجمالي النقاط:',rows.reduce((s,e)=>s+(+e.points||0),0)]);
+    aoa.push(['#','اسم الكشاف','الفريق','الطليعة','النقاط','ملاحظة']);
+    let i=0;
+    rows.forEach(e=>{const m=db.members.find(x=>x.id===e.member_id);aoa.push([++i,m?m.name:'—',m?teamName(m.team_id):'—',(m&&m.patrol_id)?troopName(m.patrol_id):'—',e.points,e.note||''])});
+    aoa.push([]);
+  });
+  const ws=XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols']=[{wch:14},{wch:24},{wch:18},{wch:18},{wch:9},{wch:18}];
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,'تقرير الحضور');
+  XLSX.writeFile(wb, sel?`حضور_${sel}.xlsx`:'تقرير_الحضور.xlsx');
+}
+
 // تشغيل
 attDate.value=today();
+buildEvalInputs();
+renderRubric();
 document.getElementById('mTeam').addEventListener('change',fillTroopOptions);
 document.getElementById('eTeam').addEventListener('change',()=>fillEditTroop(''));
 sb.auth.getSession().then(({data})=>updateAuthUI(data.session));
