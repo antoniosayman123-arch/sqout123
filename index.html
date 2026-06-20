@@ -151,6 +151,9 @@
     <div class="card">
       <h2>📋 تسجيل حضور اجتماع</h2>
       <div class="row">
+        <div><label>عرض كشافة فريق</label><select id="attTeam"></select></div>
+      </div>
+      <div class="row">
         <div><label>التاريخ</label><input type="date" id="attDate"></div>
         <div><label>ميعاد الحضور (يحدد النقاط)</label><select id="attTiming">
           <option value="5">في الميعاد (5 درجات)</option>
@@ -160,7 +163,7 @@
         </select></div>
         <div><label>النقاط للفرد</label><input type="number" id="attPts" value="5"></div>
       </div>
-      <small class="hint">اختر التاريخ → اللي حضورهم مسجّل يظهروا معلَّمين تلقائيًا. علّم/ألغِ التعليم ثم احفظ.</small>
+      <small class="hint">اختر الفريق والتاريخ → اللي حضورهم مسجّل يظهروا معلَّمين تلقائيًا. علّم/ألغِ التعليم ثم احفظ.</small>
       <div class="att-list" id="attList" style="margin-top:10px"></div>
       <button class="act" onclick="saveAttendance()" style="margin-top:12px">💾 حفظ الحضور</button>
     </div>
@@ -171,6 +174,7 @@
     <div class="card">
       <h2>📝 التقييم الشامل دفعة واحدة</h2>
       <div class="row">
+        <div><label>الفريق</label><select id="evalTeam"></select></div>
         <div><label>الكشاف</label><select id="evalMember"></select></div>
         <div><label>التاريخ</label><input type="date" id="evalDate"></div>
       </div>
@@ -185,6 +189,7 @@
     <div class="card">
       <h2>➕ إضافة نقاط</h2>
       <div class="row">
+        <div><label>الفريق</label><select id="pTeam"></select></div>
         <div><label>الكشاف</label><select id="pMember"></select></div>
         <div><label>البند</label><select id="pItem"></select></div>
       </div>
@@ -257,7 +262,7 @@
   <section id="export" class="panel">
     <div class="card">
       <h2>📤 تصدير كل بيانات الموقع</h2>
-      <p class="sub">ملف Excel منظّم، كل قسم في ورقة منفصلة: متصدرو الأفراد • متصدرو الطلايع • الفرق • الكشافة • سجل كل النقاط (بالبند والسبب) • سجل الحضور (بدون تكرار).</p>
+      <p class="sub">ملف Excel منظّم، كل قسم في ورقة منفصلة: متصدرو الأفراد • متصدرو الطلايع • الفرق • الكشافة • سجل كل النقاط • سجل الحضور (بدون تكرار).</p>
       <button class="act" onclick="exportAll()">⬇️ تحميل ملف Excel شامل</button>
     </div>
     <div class="card">
@@ -352,7 +357,13 @@ async function addPoints(){if(needAdmin())return;if(!pMember.value)return alert(
   const {error}=await sb.from('entries').insert({member_id:pMember.value,type:typeName,points:+pPts.value||0,date:today(),note:pNote.value||descText,created_at:new Date().toISOString()});
   if(error)return alert(error.message);pNote.value='';toast('✅ تمت إضافة النقاط');loadData()}
 
-// ====== الحضور (مزامنة: إضافة وحذف + بدون تكرار) ======
+// ====== الحضور (فلتر فريق + مزامنة + بدون تكرار) ======
+function renderAttList(){
+  const tf=attTeam.value;
+  const list=db.members.filter(m=>!tf||m.team_id===tf);
+  attList.innerHTML=list.length?list.map(m=>`<div class="att-row"><input type="checkbox" data-id="${m.id}"><span>${m.name} <small class="hint">(${teamName(m.team_id)}${m.patrol_id?' • '+troopName(m.patrol_id):''})</small></span></div>`).join(''):`<div class="empty">لا يوجد كشافة في هذا الفريق</div>`;
+  markAttendance();
+}
 function markAttendance(){
   const d=attDate.value;
   const present=new Set(db.entries.filter(e=>e.type==='حضور'&&e.date===d).map(e=>e.member_id));
@@ -361,12 +372,12 @@ function markAttendance(){
 async function saveAttendance(){if(needAdmin())return;
   const pts=+attPts.value||0;const d=attDate.value||today();
   const timing=attTiming.options[attTiming.selectedIndex].text;
-  const checked=new Set();
-  document.querySelectorAll('#attList input[type=checkbox]:checked').forEach(cb=>checked.add(cb.dataset.id));
+  const visible=new Set();const checked=new Set();
+  document.querySelectorAll('#attList input[type=checkbox]').forEach(cb=>{visible.add(cb.dataset.id);if(cb.checked)checked.add(cb.dataset.id);});
   const existing=db.entries.filter(e=>e.type==='حضور'&&e.date===d);
   const existingIds=new Set(existing.map(e=>e.member_id));
   const toAdd=[...checked].filter(id=>!existingIds.has(id)).map(id=>({member_id:id,type:'حضور',points:pts,date:d,note:timing,created_at:new Date().toISOString()}));
-  const toDelIds=existing.filter(e=>!checked.has(e.member_id)).map(e=>e.id);
+  const toDelIds=existing.filter(e=>visible.has(e.member_id)&&!checked.has(e.member_id)).map(e=>e.id);
   let added=0,removed=0;
   if(toAdd.length){const {error}=await sb.from('entries').insert(toAdd);if(error)return alert(error.message);added=toAdd.length;}
   if(toDelIds.length){const {error}=await sb.from('entries').delete().in('id',toDelIds);if(error)return alert(error.message);removed=toDelIds.length;}
@@ -385,6 +396,18 @@ async function delEntry(id){if(needAdmin())return;
   const {error}=await sb.from('entries').delete().eq('id',id);if(error)return alert(error.message);
   await loadData();
   if(logModal.style.display==='flex'&&currentLogId)renderLog(currentLogId);
+}
+
+// ====== فلتر أعضاء حسب الفريق ======
+function fillPointMembers(){
+  const tf=pTeam.value;
+  const list=db.members.filter(m=>!tf||m.team_id===tf);
+  pMember.innerHTML=list.map(m=>`<option value="${m.id}">${m.name}</option>`).join('');
+}
+function fillEvalMembers(){
+  const tf=evalTeam.value;
+  const list=db.members.filter(m=>!tf||m.team_id===tf);
+  evalMember.innerHTML=list.map(m=>`<option value="${m.id}">${m.name}</option>`).join('');
 }
 
 // ====== قائمتا البند والوصف في إضافة النقاط ======
@@ -547,9 +570,12 @@ function renderAll(){
   mTeam.innerHTML=teamOptsPH;
   troopTeam.innerHTML=teamOptsPH;
   fillTroopOptions();
-  const memOpts=db.members.map(m=>`<option value="${m.id}">${m.name}</option>`).join('');
-  pMember.innerHTML=memOpts;
-  evalMember.innerHTML=memOpts;
+
+  // فلاتر الفرق في صفحات النقاط والتقييم والحضور
+  const teamFilterOpts='<option value="">كل الفرق</option>'+db.teams.map(t=>`<option value="${t.id}">${t.name}</option>`).join('');
+  const prevPTeam=pTeam.value;pTeam.innerHTML=teamFilterOpts;pTeam.value=prevPTeam;fillPointMembers();
+  const prevEvalTeam=evalTeam.value;evalTeam.innerHTML=teamFilterOpts;evalTeam.value=prevEvalTeam;fillEvalMembers();
+  const prevAttTeam=attTeam.value;attTeam.innerHTML=teamFilterOpts;attTeam.value=prevAttTeam;renderAttList();
 
   const ind=db.members.map(m=>({...m,pts:memberPts(m.id)})).sort((a,b)=>b.pts-a.pts);
   boardInd.innerHTML=ind.length?ind.map((m,i)=>`<tr><td class="rank ${['gold','silver','bronze'][i]||''}">${i+1}</td><td>${m.name}</td><td>${teamName(m.team_id)}</td><td>${m.patrol_id?troopName(m.patrol_id):'<span class="sub">—</span>'}</td><td class="pts">${m.pts}</td></tr>`).join(''):`<tr><td colspan="5" class="empty">لا يوجد كشافة بعد</td></tr>`;
@@ -563,9 +589,6 @@ function renderAll(){
     const rows=mem.length?mem.map((m,i)=>`<tr><td class="rank ${['gold','silver','bronze'][i]||''}">${i+1}</td><td>${m.name}</td><td>${m.patrol_id?troopName(m.patrol_id):'<span class="sub">—</span>'}</td><td class="pts">${m.pts}</td></tr>`).join(''):`<tr><td colspan="4" class="empty">لا يوجد كشافة في الفريق</td></tr>`;
     return `<div class="card"><h2>🚩 متصدرو فريق ${t.name} <span class="sub">(${teamPts(t.id)} نقطة)</span></h2><table><thead><tr><th class="rank">#</th><th>الاسم</th><th>الطليعة</th><th class="pts">النقاط</th></tr></thead><tbody>${rows}</tbody></table></div>`;
   }).join('');
-
-  attList.innerHTML=db.members.length?db.members.map(m=>`<div class="att-row"><input type="checkbox" data-id="${m.id}"><span>${m.name} <small class="hint">(${teamName(m.team_id)}${m.patrol_id?' • '+troopName(m.patrol_id):''})</small></span></div>`).join(''):`<div class="empty">أضف كشافة أولاً</div>`;
-  markAttendance();
 
   const attDates=[...new Set(db.entries.filter(e=>e.type==='حضور').map(e=>e.date))].sort().reverse();
   expDate.innerHTML='<option value="">كل الاجتماعات</option>'+attDates.map(d=>`<option value="${d}">${d}</option>`).join('');
@@ -641,7 +664,7 @@ function exportAll(){
   log.forEach(e=>{const m=db.members.find(x=>x.id===e.member_id);s5.push([fmtDT(e.created_at)||e.date,m?m.name:'—',m?teamName(m.team_id):'—',(m&&m.patrol_id)?troopName(m.patrol_id):'—',e.type,e.points,e.note||''])});
   add(s5,[20,22,16,16,18,9,28],'سجل النقاط');
 
-  // الحضور (بدون تكرار: كل كشاف مرة واحدة في الاجتماع)
+  // الحضور (بدون تكرار)
   const attSeen={};
   db.entries.filter(e=>e.type==='حضور').forEach(e=>{const k=e.member_id+'|'+e.date;if(!attSeen[k]||+e.points>+attSeen[k].points)attSeen[k]=e;});
   const att=Object.values(attSeen).sort((a,b)=>(b.date||'').localeCompare(a.date||''));
@@ -657,6 +680,9 @@ attDate.value=today();
 attPts.value=5;
 document.getElementById('attTiming').addEventListener('change',()=>{attPts.value=attTiming.value});
 attDate.addEventListener('change',markAttendance);
+attTeam.addEventListener('change',renderAttList);
+evalTeam.addEventListener('change',fillEvalMembers);
+pTeam.addEventListener('change',fillPointMembers);
 buildEvalInputs();
 renderRubric();
 fillItemOptions();
