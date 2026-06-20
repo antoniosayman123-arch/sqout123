@@ -40,7 +40,7 @@
   button.act{background:var(--green);color:#fff;border:none;padding:10px 16px;border-radius:8px;cursor:pointer;font-weight:bold}
   button.del{background:transparent;color:#ef4444;border:none;cursor:pointer;font-size:1.1rem}
   button.edit{background:transparent;color:var(--accent);border:none;cursor:pointer;font-size:1.05rem}
-  .att-list{max-height:320px;overflow:auto}
+  .att-list{max-height:340px;overflow:auto}
   .att-row{display:flex;align-items:center;gap:10px;padding:8px;border-bottom:1px solid var(--line)}
   .att-row span{flex:1}
   .att-row input[type=checkbox]{width:20px;height:20px}
@@ -48,7 +48,7 @@
   small.hint{color:var(--muted)}
   #loginCard{max-width:380px;margin:30px auto}
   .sub{color:var(--muted);font-size:.82rem;line-height:1.6}
-  #editModal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:110;align-items:center;justify-content:center;padding:16px}
+  #editModal,#logModal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:110;align-items:center;justify-content:center;padding:16px}
   #editModal .card{max-width:400px;width:100%;margin:0}
   .modal-actions{display:flex;gap:10px;margin-top:8px}
   .btn-cancel{background:transparent;color:var(--muted);border:1px solid var(--line);border-radius:8px;padding:10px 16px;cursor:pointer}
@@ -77,6 +77,16 @@
       <button class="act" onclick="saveEdit()">💾 حفظ التعديل</button>
       <button class="btn-cancel" onclick="closeEdit()">إلغاء</button>
     </div>
+  </div>
+</div>
+
+<!-- نافذة سجل حركات الكشاف -->
+<div id="logModal">
+  <div class="card" style="max-width:660px;width:100%;margin:0;max-height:85vh;overflow:auto">
+    <h2 id="logModalTitle"></h2>
+    <p class="sub">إجمالي النقاط: <b style="color:var(--accent)" id="logModalTotal">0</b></p>
+    <div id="logModalBody"></div>
+    <div class="modal-actions"><button class="btn-cancel" onclick="closeLog()">إغلاق</button></div>
   </div>
 </div>
 
@@ -113,6 +123,7 @@
       <table><thead><tr><th class="rank">#</th><th>الطليعة</th><th>الفريق</th><th class="pts">النقاط</th></tr></thead>
       <tbody id="boardTroop"></tbody></table>
     </div>
+    <div id="teamBoards"></div>
   </section>
 
   <!-- بنود التقييم (مرجع عام) -->
@@ -149,16 +160,16 @@
         </select></div>
         <div><label>النقاط للفرد</label><input type="number" id="attPts" value="5"></div>
       </div>
-      <small class="hint">اختر الميعاد (النقاط تتحدد تلقائيًا)، علّم الحاضرين، ثم احفظ.</small>
+      <small class="hint">اختر التاريخ → اللي حضورهم مسجّل يظهروا معلَّمين تلقائيًا. علّم/ألغِ التعليم ثم احفظ.</small>
       <div class="att-list" id="attList" style="margin-top:10px"></div>
       <button class="act" onclick="saveAttendance()" style="margin-top:12px">💾 حفظ الحضور</button>
     </div>
   </section>
 
-  <!-- التقييم -->
+  <!-- التقييم الشامل -->
   <section id="evaluate" class="panel">
     <div class="card">
-      <h2>📝 تقييم كشاف</h2>
+      <h2>📝 التقييم الشامل دفعة واحدة</h2>
       <div class="row">
         <div><label>الكشاف</label><select id="evalMember"></select></div>
         <div><label>التاريخ</label><input type="date" id="evalDate"></div>
@@ -188,7 +199,7 @@
     </div>
     <div class="card">
       <h2>📝 آخر الحركات</h2>
-      <table><thead><tr><th>التاريخ</th><th>الكشاف</th><th>البند</th><th class="pts">النقاط</th><th></th></tr></thead>
+      <table><thead><tr><th>التاريخ والوقت</th><th>الكشاف</th><th>البند</th><th class="pts">النقاط</th><th></th></tr></thead>
       <tbody id="logBody"></tbody></table>
     </div>
   </section>
@@ -246,13 +257,13 @@
   <section id="export" class="panel">
     <div class="card">
       <h2>📤 تصدير كل بيانات الموقع</h2>
-      <p class="sub">ملف Excel منظّم، كل قسم في ورقة منفصلة: متصدرو الأفراد • متصدرو الطلايع • الفرق • الكشافة • سجل كل النقاط (بالبند والسبب) • سجل الحضور (بالنقاط والميعاد).</p>
+      <p class="sub">ملف Excel منظّم، كل قسم في ورقة منفصلة: متصدرو الأفراد • متصدرو الطلايع • الفرق • الكشافة • سجل كل النقاط (بالبند والسبب) • سجل الحضور (بدون تكرار).</p>
       <button class="act" onclick="exportAll()">⬇️ تحميل ملف Excel شامل</button>
     </div>
     <div class="card">
       <h2>📥 تقرير الحضور فقط</h2>
       <div class="row"><div><label>اختر الاجتماع</label><select id="expDate"></select></div></div>
-      <small class="hint">يوضّح كل اجتماع: أسماء الحاضرين + نقاط الحضور + السبب/الميعاد.</small>
+      <small class="hint">يوضّح كل اجتماع: أسماء الحاضرين + نقاط الحضور + السبب/الميعاد (كل اسم مرة واحدة).</small>
       <button class="act" onclick="exportAttendance()" style="margin-top:10px">⬇️ تحميل تقرير الحضور</button>
     </div>
   </section>
@@ -267,7 +278,13 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 let db={teams:[],patrols:[],members:[],entries:[]};
 let isAdmin=false;
 let editId=null;
+let currentLogId=null;
 const today=()=>new Date().toISOString().slice(0,10);
+function fmtDT(ts){
+  if(!ts)return '';
+  const d=new Date(ts);const p=n=>String(n).padStart(2,'0');
+  return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+}
 
 // ====== بنود التقييم ======
 const RUBRIC=[
@@ -286,7 +303,7 @@ const RUBRIC=[
   {key:'meeting',name:'حضور الاجتماع',max:5,type:'radio',opts:[
     {label:'الحضور',pts:5},{label:'عدم الحضور باعتذار سابق',pts:3},{label:'غياب بدون عذر',pts:0}]},
   {key:'ontime',name:'ميعاد الاجتماع',max:5,type:'radio',opts:[
-    {label:'في الميعاد',pts:5},{label:'متأخر حتى 10 دقائق',pts:4},{label:'متأخر أكثر من 10 دقائق بعذر مسبق',pts:3},{label:'متأخر أكثر من 10 دقائق بدون عذر',pts:1}]},
+    {label:'في الميعاد',pts:5},{label:'متأخر حتى 10 دقائق',pts:4},{label:'متأخر أكثر من 10 دقائق بعذر مسبق',pts:3},{label:'متأخر أكثر من 10 دقائق بدون عذر',pts:1},{label:'لم يحضر',pts:0}]},
   {key:'uniform',name:'الزي الكشفي',max:5,type:'check',opts:[
     {label:'القميص',pts:1},{label:'البنطلون',pts:1},{label:'الحذاء',pts:1},{label:'الهيئة العامة',pts:1}]},
   {key:'participate',name:'المشاركة في الاجتماع',max:5,type:'radio',opts:[
@@ -332,16 +349,31 @@ async function addPoints(){if(needAdmin())return;if(!pMember.value)return alert(
   const it=RUBRIC.find(r=>r.key===pItem.value);
   const typeName=it?it.name:'أخرى';
   const descText=pDesc.options.length?pDesc.options[pDesc.selectedIndex].text:'';
-  const {error}=await sb.from('entries').insert({member_id:pMember.value,type:typeName,points:+pPts.value||0,date:today(),note:pNote.value||descText});
+  const {error}=await sb.from('entries').insert({member_id:pMember.value,type:typeName,points:+pPts.value||0,date:today(),note:pNote.value||descText,created_at:new Date().toISOString()});
   if(error)return alert(error.message);pNote.value='';toast('✅ تمت إضافة النقاط');loadData()}
+
+// ====== الحضور (مزامنة: إضافة وحذف + بدون تكرار) ======
+function markAttendance(){
+  const d=attDate.value;
+  const present=new Set(db.entries.filter(e=>e.type==='حضور'&&e.date===d).map(e=>e.member_id));
+  document.querySelectorAll('#attList input[type=checkbox]').forEach(cb=>{cb.checked=present.has(cb.dataset.id)});
+}
 async function saveAttendance(){if(needAdmin())return;
   const pts=+attPts.value||0;const d=attDate.value||today();
   const timing=attTiming.options[attTiming.selectedIndex].text;
-  const rows=[];
-  document.querySelectorAll('#attList input[type=checkbox]:checked').forEach(cb=>rows.push({member_id:cb.dataset.id,type:'حضور',points:pts,date:d,note:timing}));
-  if(!rows.length)return alert('علّم الحاضرين أولاً');
-  const {error}=await sb.from('entries').insert(rows);if(error)return alert(error.message);
-  toast('تم تسجيل حضور '+rows.length+' كشاف');loadData()}
+  const checked=new Set();
+  document.querySelectorAll('#attList input[type=checkbox]:checked').forEach(cb=>checked.add(cb.dataset.id));
+  const existing=db.entries.filter(e=>e.type==='حضور'&&e.date===d);
+  const existingIds=new Set(existing.map(e=>e.member_id));
+  const toAdd=[...checked].filter(id=>!existingIds.has(id)).map(id=>({member_id:id,type:'حضور',points:pts,date:d,note:timing,created_at:new Date().toISOString()}));
+  const toDelIds=existing.filter(e=>!checked.has(e.member_id)).map(e=>e.id);
+  let added=0,removed=0;
+  if(toAdd.length){const {error}=await sb.from('entries').insert(toAdd);if(error)return alert(error.message);added=toAdd.length;}
+  if(toDelIds.length){const {error}=await sb.from('entries').delete().in('id',toDelIds);if(error)return alert(error.message);removed=toDelIds.length;}
+  if(!added&&!removed)return toast('لا توجد تغييرات');
+  toast('تم الحفظ ✅  (أُضيف '+added+' • حُذف '+removed+')');loadData();
+}
+
 async function delMember(id){if(needAdmin())return;if(!confirm('حذف الكشاف وكل نقاطه؟'))return;
   const {error}=await sb.from('members').delete().eq('id',id);if(error)return alert(error.message);loadData()}
 async function delTroop(id){if(needAdmin())return;if(!confirm('حذف الطليعة؟'))return;
@@ -349,7 +381,11 @@ async function delTroop(id){if(needAdmin())return;if(!confirm('حذف الطلي
 async function delTeam(id){if(needAdmin())return;if(!confirm('حذف الفريق وكل طلايعه؟'))return;
   const {error}=await sb.from('teams').delete().eq('id',id);if(error)return alert(error.message);loadData()}
 async function delEntry(id){if(needAdmin())return;
-  const {error}=await sb.from('entries').delete().eq('id',id);if(error)return alert(error.message);loadData()}
+  if(!confirm('حذف هذه الحركة نهائيًا؟'))return;
+  const {error}=await sb.from('entries').delete().eq('id',id);if(error)return alert(error.message);
+  await loadData();
+  if(logModal.style.display==='flex'&&currentLogId)renderLog(currentLogId);
+}
 
 // ====== قائمتا البند والوصف في إضافة النقاط ======
 function fillItemOptions(){
@@ -395,7 +431,21 @@ async function saveEdit(){
   closeEdit();toast('✅ تم تحديث بيانات الكشاف');loadData();
 }
 
-// ====== التقييم الكامل ======
+// ====== سجل حركات الكشاف ======
+function openLog(id){
+  if(needAdmin())return;
+  currentLogId=id;renderLog(id);logModal.style.display='flex';
+}
+function renderLog(id){
+  const m=db.members.find(x=>x.id===id);if(!m)return;
+  const ents=db.entries.filter(e=>e.member_id===id).sort((a,b)=>new Date(b.created_at||b.date||0)-new Date(a.created_at||a.date||0));
+  logModalTitle.innerHTML=`📜 سجل حركات: ${m.name} <span class="sub">(${teamName(m.team_id)}${m.patrol_id?' • '+troopName(m.patrol_id):''})</span>`;
+  logModalTotal.textContent=memberPts(id);
+  logModalBody.innerHTML=ents.length?`<table><thead><tr><th>التاريخ والوقت</th><th>البند</th><th class="pts">النقاط</th><th>السبب</th><th></th></tr></thead><tbody>${ents.map(e=>`<tr><td>${fmtDT(e.created_at)||e.date}</td><td>${e.type}</td><td class="pts">${e.points}</td><td>${e.note||'<span class="sub">—</span>'}</td><td><button class="del" onclick="delEntry('${e.id}')">🗑</button></td></tr>`).join('')}</tbody></table>`:`<div class="empty">لا توجد حركات لهذا الكشاف</div>`;
+}
+function closeLog(){logModal.style.display='none';currentLogId=null}
+
+// ====== التقييم الشامل ======
 function buildEvalInputs(){
   let html='';
   RUBRIC.forEach(it=>{
@@ -403,7 +453,8 @@ function buildEvalInputs(){
     if(it.note)html+=`<small class="hint">${it.note}</small>`;
     html+='<div class="eval-opts">';
     if(it.type==='radio'){
-      html+=it.opts.map((o,i)=>`<label class="opt"><input type="radio" name="r_${it.key}" value="${o.pts}" ${i===0?'checked':''}> ${o.label} <b>(${o.pts})</b></label>`).join('');
+      const zeroIdx=it.opts.reduce((mi,o,idx,arr)=>o.pts<arr[mi].pts?idx:mi,0);
+      html+=it.opts.map((o,i)=>`<label class="opt"><input type="radio" name="r_${it.key}" value="${o.pts}" ${i===zeroIdx?'checked':''}> ${o.label} <b>(${o.pts})</b></label>`).join('');
     }else if(it.type==='check'){
       html+=it.opts.map(o=>`<label class="opt"><input type="checkbox" name="c_${it.key}" value="${o.pts}"> ${o.label} <b>(${o.pts})</b></label>`).join('');
     }else if(it.type==='deduct'){
@@ -437,9 +488,22 @@ async function saveEval(){
   if(needAdmin())return;
   if(!evalMember.value)return alert('اختر كشاف');
   const total=calcEval();
-  const {error}=await sb.from('entries').insert({member_id:evalMember.value,type:'تقييم',points:total,date:evalDate.value||today(),note:'تقييم أسبوعي'});
+  const d=evalDate.value||today();
+  const mSel=evalBody.querySelector('input[name="r_meeting"]:checked');
+  const meetingPts=mSel?+mSel.value:0;
+  const mLabel=mSel?mSel.closest('label').textContent.replace(/\s+/g,' ').trim():'';
+  const present=mLabel.includes('الحضور')&&!mLabel.includes('عدم');
+  const already=db.entries.some(e=>e.type==='حضور'&&e.member_id===evalMember.value&&e.date===d);
+  const rows=[];let evalPart=total;
+  if(present&&!already){
+    rows.push({member_id:evalMember.value,type:'حضور',points:meetingPts,date:d,note:'من التقييم الشامل',created_at:new Date().toISOString()});
+    evalPart=total-meetingPts;
+  }
+  rows.push({member_id:evalMember.value,type:'تقييم',points:evalPart,date:d,note:'تقييم شامل',created_at:new Date().toISOString()});
+  const {error}=await sb.from('entries').insert(rows);
   if(error)return alert(error.message);
-  toast('✅ تم حفظ التقييم: '+total+' درجة');loadData();
+  toast('✅ تم حفظ التقييم: '+total+' درجة'+(present&&!already?' + اتسجّل الحضور':''));
+  loadData();
 }
 function renderRubric(){
   rubricBody.innerHTML=RUBRIC.map(it=>{
@@ -449,7 +513,7 @@ function renderRubric(){
   }).join('');
 }
 
-// تسجيل الدخول
+// ====== تسجيل الدخول ======
 async function doLogin(){
   const {error}=await sb.auth.signInWithPassword({email:logEmail.value.trim(),password:logPass.value});
   if(error){logMsg.textContent='بيانات غير صحيحة';return}
@@ -493,22 +557,30 @@ function renderAll(){
   const troops=db.patrols.map(p=>({...p,pts:troopPts(p.id)})).sort((a,b)=>b.pts-a.pts);
   boardTroop.innerHTML=troops.length?troops.map((p,i)=>`<tr><td class="rank ${['gold','silver','bronze'][i]||''}">${i+1}</td><td>${p.name}</td><td>${teamName(p.team_id)}</td><td class="pts">${p.pts}</td></tr>`).join(''):`<tr><td colspan="4" class="empty">لا يوجد طلايع بعد</td></tr>`;
 
+  // لوحة متصدرين لكل فريق
+  teamBoards.innerHTML=db.teams.map(t=>{
+    const mem=db.members.filter(m=>m.team_id===t.id).map(m=>({...m,pts:memberPts(m.id)})).sort((a,b)=>b.pts-a.pts);
+    const rows=mem.length?mem.map((m,i)=>`<tr><td class="rank ${['gold','silver','bronze'][i]||''}">${i+1}</td><td>${m.name}</td><td>${m.patrol_id?troopName(m.patrol_id):'<span class="sub">—</span>'}</td><td class="pts">${m.pts}</td></tr>`).join(''):`<tr><td colspan="4" class="empty">لا يوجد كشافة في الفريق</td></tr>`;
+    return `<div class="card"><h2>🚩 متصدرو فريق ${t.name} <span class="sub">(${teamPts(t.id)} نقطة)</span></h2><table><thead><tr><th class="rank">#</th><th>الاسم</th><th>الطليعة</th><th class="pts">النقاط</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  }).join('');
+
   attList.innerHTML=db.members.length?db.members.map(m=>`<div class="att-row"><input type="checkbox" data-id="${m.id}"><span>${m.name} <small class="hint">(${teamName(m.team_id)}${m.patrol_id?' • '+troopName(m.patrol_id):''})</small></span></div>`).join(''):`<div class="empty">أضف كشافة أولاً</div>`;
+  markAttendance();
 
   const attDates=[...new Set(db.entries.filter(e=>e.type==='حضور').map(e=>e.date))].sort().reverse();
   expDate.innerHTML='<option value="">كل الاجتماعات</option>'+attDates.map(d=>`<option value="${d}">${d}</option>`).join('');
 
-  const log=[...db.entries].sort((a,b)=>(b.date||'').localeCompare(a.date||'')).slice(0,30);
-  logBody.innerHTML=log.length?log.map(e=>{const m=db.members.find(x=>x.id===e.member_id);return `<tr><td>${e.date}</td><td>${m?m.name:'—'}</td><td>${e.type}</td><td class="pts">${e.points}</td><td><button class="del" onclick="delEntry('${e.id}')">✕</button></td></tr>`}).join(''):`<tr><td colspan="5" class="empty">لا توجد حركات</td></tr>`;
+  const log=[...db.entries].sort((a,b)=>new Date(b.created_at||b.date||0)-new Date(a.created_at||a.date||0)).slice(0,30);
+  logBody.innerHTML=log.length?log.map(e=>{const m=db.members.find(x=>x.id===e.member_id);return `<tr><td>${fmtDT(e.created_at)||e.date}</td><td>${m?m.name:'—'}</td><td>${e.type}</td><td class="pts">${e.points}</td><td><button class="del" onclick="delEntry('${e.id}')">✕</button></td></tr>`}).join(''):`<tr><td colspan="5" class="empty">لا توجد حركات</td></tr>`;
 
-  memBody.innerHTML=db.members.length?db.members.map(m=>`<tr><td>${m.name}</td><td>${teamName(m.team_id)}</td><td>${m.patrol_id?troopName(m.patrol_id):'<span class="sub">—</span>'}</td><td class="pts">${memberPts(m.id)}</td><td><button class="edit" onclick="openEdit('${m.id}')">✏️</button> <button class="del" onclick="delMember('${m.id}')">🗑</button></td></tr>`).join(''):`<tr><td colspan="5" class="empty">لا يوجد كشافة</td></tr>`;
+  memBody.innerHTML=db.members.length?db.members.map(m=>`<tr><td>${m.name}</td><td>${teamName(m.team_id)}</td><td>${m.patrol_id?troopName(m.patrol_id):'<span class="sub">—</span>'}</td><td class="pts">${memberPts(m.id)}</td><td><button class="edit" onclick="openLog('${m.id}')" title="سجل الحركات">📜</button> <button class="edit" onclick="openEdit('${m.id}')" title="تعديل">✏️</button> <button class="del" onclick="delMember('${m.id}')" title="حذف">🗑</button></td></tr>`).join(''):`<tr><td colspan="5" class="empty">لا يوجد كشافة</td></tr>`;
 
   troopBody.innerHTML=db.patrols.length?db.patrols.map(p=>`<tr><td>${p.name}</td><td>${teamName(p.team_id)}</td><td>${db.members.filter(m=>m.patrol_id===p.id).length}</td><td class="pts">${troopPts(p.id)}</td><td><button class="del" onclick="delTroop('${p.id}')">🗑</button></td></tr>`).join(''):`<tr><td colspan="5" class="empty">لا يوجد طلايع</td></tr>`;
 
   teamBody.innerHTML=db.teams.length?db.teams.map(t=>`<tr><td>${t.name}</td><td>${db.patrols.filter(p=>p.team_id===t.id).length}</td><td>${db.members.filter(m=>m.team_id===t.id).length}</td><td class="pts">${teamPts(t.id)}</td><td><button class="del" onclick="delTeam('${t.id}')">🗑</button></td></tr>`).join(''):`<tr><td colspan="5" class="empty">لا يوجد فرق</td></tr>`;
 }
 
-// ====== تصدير: تقرير الحضور ======
+// ====== تصدير: تقرير الحضور (بدون تكرار) ======
 function exportAttendance(){
   const att=db.entries.filter(e=>e.type==='حضور');
   if(!att.length)return alert('لا يوجد حضور مسجّل');
@@ -517,7 +589,9 @@ function exportAttendance(){
   const dates=sel?[sel]:allDates;
   const aoa=[['كنيسة الشهيد العظيم مارجرجس - أبو زعبل البلد'],['فريق نسر البرية — تقرير الحضور'],[]];
   dates.forEach((d,idx)=>{
-    const rows=att.filter(e=>e.date===d);
+    const seen={};
+    att.filter(e=>e.date===d).forEach(e=>{if(!seen[e.member_id]||+e.points>+seen[e.member_id].points)seen[e.member_id]=e;});
+    const rows=Object.values(seen);
     aoa.push(['تاريخ الاجتماع:',d]);
     aoa.push(['عدد الحاضرين:',rows.length]);
     aoa.push(['إجمالي النقاط:',rows.reduce((s,e)=>s+(+e.points||0),0)]);
@@ -543,37 +617,34 @@ function exportAll(){
   wb.Workbook={Views:[{RTL:true}]};
   const add=(rows,cols,name)=>{const ws=XLSX.utils.aoa_to_sheet(rows);ws['!cols']=cols.map(w=>({wch:w}));XLSX.utils.book_append_sheet(wb,ws,name)};
 
-  // متصدرو الأفراد
   const ind=db.members.map(m=>({...m,pts:memberPts(m.id)})).sort((a,b)=>b.pts-a.pts);
   const s1=[T,['لوحة متصدري الأفراد'],[],['الترتيب','الاسم','الفريق','الطليعة','إجمالي النقاط']];
   ind.forEach((m,i)=>s1.push([i+1,m.name,teamName(m.team_id),m.patrol_id?troopName(m.patrol_id):'—',m.pts]));
   add(s1,[8,24,16,16,12],'متصدرو الأفراد');
 
-  // متصدرو الطلايع
   const tr=db.patrols.map(p=>({...p,pts:troopPts(p.id)})).sort((a,b)=>b.pts-a.pts);
   const s2=[T,['لوحة متصدري الطلايع'],[],['الترتيب','الطليعة','الفريق','عدد الأعضاء','إجمالي النقاط']];
   tr.forEach((p,i)=>s2.push([i+1,p.name,teamName(p.team_id),db.members.filter(m=>m.patrol_id===p.id).length,p.pts]));
   add(s2,[8,18,16,12,12],'متصدرو الطلايع');
 
-  // الفرق
   const tm=db.teams.map(t=>({...t,pts:teamPts(t.id)})).sort((a,b)=>b.pts-a.pts);
   const s3=[T,['الفرق'],[],['الفريق','عدد الطلايع','عدد الأعضاء','إجمالي النقاط']];
   tm.forEach(t=>s3.push([t.name,db.patrols.filter(p=>p.team_id===t.id).length,db.members.filter(m=>m.team_id===t.id).length,t.pts]));
   add(s3,[18,12,12,12],'الفرق');
 
-  // الكشافة
   const s4=[T,['قائمة الكشافة'],[],['الاسم','الفريق','الطليعة','إجمالي النقاط']];
   db.members.forEach(m=>s4.push([m.name,teamName(m.team_id),m.patrol_id?troopName(m.patrol_id):'—',memberPts(m.id)]));
   add(s4,[24,16,16,12],'الكشافة');
 
-  // سجل كل النقاط
-  const log=[...db.entries].sort((a,b)=>(b.date||'').localeCompare(a.date||''));
-  const s5=[T,['سجل كل النقاط'],[],['التاريخ','الكشاف','الفريق','الطليعة','البند','النقاط','السبب / الوصف']];
-  log.forEach(e=>{const m=db.members.find(x=>x.id===e.member_id);s5.push([e.date,m?m.name:'—',m?teamName(m.team_id):'—',(m&&m.patrol_id)?troopName(m.patrol_id):'—',e.type,e.points,e.note||''])});
-  add(s5,[14,22,16,16,18,9,28],'سجل النقاط');
+  const log=[...db.entries].sort((a,b)=>new Date(b.created_at||b.date||0)-new Date(a.created_at||a.date||0));
+  const s5=[T,['سجل كل النقاط'],[],['التاريخ والوقت','الكشاف','الفريق','الطليعة','البند','النقاط','السبب / الوصف']];
+  log.forEach(e=>{const m=db.members.find(x=>x.id===e.member_id);s5.push([fmtDT(e.created_at)||e.date,m?m.name:'—',m?teamName(m.team_id):'—',(m&&m.patrol_id)?troopName(m.patrol_id):'—',e.type,e.points,e.note||''])});
+  add(s5,[20,22,16,16,18,9,28],'سجل النقاط');
 
-  // الحضور
-  const att=db.entries.filter(e=>e.type==='حضور').sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  // الحضور (بدون تكرار: كل كشاف مرة واحدة في الاجتماع)
+  const attSeen={};
+  db.entries.filter(e=>e.type==='حضور').forEach(e=>{const k=e.member_id+'|'+e.date;if(!attSeen[k]||+e.points>+attSeen[k].points)attSeen[k]=e;});
+  const att=Object.values(attSeen).sort((a,b)=>(b.date||'').localeCompare(a.date||''));
   const s6=[T,['سجل الحضور'],[],['التاريخ','الكشاف','الفريق','الطليعة','نقاط الحضور','السبب / الميعاد']];
   att.forEach(e=>{const m=db.members.find(x=>x.id===e.member_id);s6.push([e.date,m?m.name:'—',m?teamName(m.team_id):'—',(m&&m.patrol_id)?troopName(m.patrol_id):'—',e.points,e.note||''])});
   add(s6,[14,22,16,16,12,30],'الحضور');
@@ -581,10 +652,11 @@ function exportAll(){
   XLSX.writeFile(wb,'بيانات_فريق_نسر_البرية.xlsx');
 }
 
-// تشغيل
+// ====== تشغيل ======
 attDate.value=today();
 attPts.value=5;
 document.getElementById('attTiming').addEventListener('change',()=>{attPts.value=attTiming.value});
+attDate.addEventListener('change',markAttendance);
 buildEvalInputs();
 renderRubric();
 fillItemOptions();
